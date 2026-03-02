@@ -1,5 +1,19 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：記憶體綁定 Session（不再跨 Session 共享）
+
+**BREAKING CHANGE**：`user_memories` 表主鍵從 `(user_id, key)` 改為 `(session_id, key)`，舊資料無法遷移。
+
+- `src/storage/database.py`：Schema 改用 `session_id` + FK 到 sessions + CASCADE 刪除；新增 migration 偵測舊表自動 DROP 重建
+- `src/session/memory.py`：所有 CRUD 函數 `user_id` → `session_id`
+- `src/tool/memory_tool.py`：改用 `ctx.session_id`，description 移除「跨 Session」
+- `src/session/processor.py`：`build_system_prompt()` 改用 `memory_read(self.session_id)`
+- `src/api/memory.py`：新增 `session_id` 必填 query param
+- 測試：新增 `test_memory_session_isolation`、`test_memory_cascade_on_session_delete`；修復 `test_memory_api`、`test_memory_tools`
+- OpenSpec proposal: `update-memory-session-scoped`
+
+---
+
 ## 2026-03-03：Skill Tool 行為對齊 OpenCode
 
 - `src/skill.py`：`get_skill_content()` 改用 `frontmatter.load()` 解析，回傳 `post.content`（去除 YAML frontmatter）

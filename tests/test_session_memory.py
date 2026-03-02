@@ -67,16 +67,19 @@ async def test_auto_title(db):
 
 
 @pytest.mark.asyncio
-async def test_memory_isolation(db):
-    """不同使用者的記憶互相隔離"""
-    await memory_write("user1", "focus", "心血管")
-    await memory_write("user2", "focus", "腫瘤學")
+async def test_memory_session_isolation(db):
+    """不同 Session 的記憶互相隔離"""
+    s1 = await create_session("user1", "local")
+    s2 = await create_session("user1", "local")
 
-    m1 = await memory_read("user1", "focus")
+    await memory_write(s1["id"], "focus", "心血管")
+    await memory_write(s2["id"], "focus", "腫瘤學")
+
+    m1 = await memory_read(s1["id"], "focus")
     assert len(m1) == 1
     assert m1[0]["value"] == "心血管"
 
-    m2 = await memory_read("user2", "focus")
+    m2 = await memory_read(s2["id"], "focus")
     assert len(m2) == 1
     assert m2[0]["value"] == "腫瘤學"
 
@@ -84,19 +87,44 @@ async def test_memory_isolation(db):
 @pytest.mark.asyncio
 async def test_memory_crud(db):
     """記憶的讀寫刪"""
-    await memory_write("user1", "key1", "val1")
-    await memory_write("user1", "key2", "val2")
+    s = await create_session("user1", "local")
+    sid = s["id"]
 
-    all_mem = await memory_read("user1")
+    await memory_write(sid, "key1", "val1")
+    await memory_write(sid, "key2", "val2")
+
+    all_mem = await memory_read(sid)
     assert len(all_mem) == 2
 
     # 更新
-    await memory_write("user1", "key1", "updated")
-    m = await memory_read("user1", "key1")
+    await memory_write(sid, "key1", "updated")
+    m = await memory_read(sid, "key1")
     assert m[0]["value"] == "updated"
 
     # 刪除
-    ok = await memory_delete("user1", "key1")
+    ok = await memory_delete(sid, "key1")
     assert ok
-    all_mem = await memory_read("user1")
+    all_mem = await memory_read(sid)
     assert len(all_mem) == 1
+
+
+@pytest.mark.asyncio
+async def test_memory_cascade_on_session_delete(db):
+    """刪除 Session 時記憶一起 CASCADE 刪除"""
+    s = await create_session("user1", "local")
+    sid = s["id"]
+
+    await memory_write(sid, "key1", "val1")
+    await memory_write(sid, "key2", "val2")
+
+    # 確認記憶存在
+    all_mem = await memory_read(sid)
+    assert len(all_mem) == 2
+
+    # 刪除 Session
+    ok = await delete_session(sid, "user1")
+    assert ok
+
+    # 記憶應該被 CASCADE 刪除
+    all_mem = await memory_read(sid)
+    assert len(all_mem) == 0

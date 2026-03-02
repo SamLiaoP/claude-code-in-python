@@ -3,7 +3,7 @@
 #
 # 用途：管理 aiosqlite 連線，初始化 sessions / messages / user_memories 三張表
 # 主要功能：
-#   - init_db(db_path) 初始化 schema
+#   - init_db(db_path) 初始化 schema（含 migration）
 #   - get_db() 取得全域 db 連線
 # 關聯：被 session/session.py, session/memory.py, api/ 引用
 ###
@@ -32,13 +32,22 @@ CREATE TABLE IF NOT EXISTS messages (
 );
 
 CREATE TABLE IF NOT EXISTS user_memories (
-    user_id     TEXT NOT NULL,
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     key         TEXT NOT NULL,
     value       TEXT NOT NULL,
     updated_at  TEXT NOT NULL,
-    PRIMARY KEY (user_id, key)
+    PRIMARY KEY (session_id, key)
 );
 """
+
+
+async def _migrate_user_memories(db: aiosqlite.Connection):
+    """偵測舊表有 user_id 欄位則 DROP 重建"""
+    cursor = await db.execute("PRAGMA table_info(user_memories)")
+    columns = [row[1] for row in await cursor.fetchall()]
+    if "user_id" in columns:
+        await db.execute("DROP TABLE user_memories")
+        await db.commit()
 
 
 async def init_db(db_path: str) -> aiosqlite.Connection:
@@ -48,6 +57,8 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
     _db.row_factory = aiosqlite.Row
     await _db.execute("PRAGMA journal_mode=WAL")
     await _db.execute("PRAGMA foreign_keys=ON")
+    # migration：舊表有 user_id 則 DROP 重建
+    await _migrate_user_memories(_db)
     await _db.executescript(SCHEMA_SQL)
     await _db.commit()
     return _db

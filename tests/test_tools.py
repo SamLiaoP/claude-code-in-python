@@ -90,8 +90,10 @@ async def test_file_tools():
 @pytest.mark.asyncio
 async def test_memory_tools(db):
     from tool.memory_tool import MemoryWriteTool, MemoryReadTool
+    from session.session import create_session
 
-    ctx = ToolContext(session_id="test", user_id="mem-test-user")
+    s = await create_session("mem-test-user", "local")
+    ctx = ToolContext(session_id=s["id"], user_id="mem-test-user")
     write_tool = MemoryWriteTool()
     read_tool = MemoryReadTool()
 

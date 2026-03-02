@@ -151,6 +151,13 @@ async def test_memory_api():
     transport = ASGITransport(app=app)
     headers = {"Authorization": "Bearer test-key-1"}
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/memory", headers=headers)
+        # 先建立 session 取得 session_id
+        resp = await client.post(
+            "/api/sessions",
+            json={"provider": "local", "skip_workdir": True},
+            headers=headers,
+        )
+        session_id = resp.json()["id"]
+        resp = await client.get(f"/api/memory?session_id={session_id}", headers=headers)
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)

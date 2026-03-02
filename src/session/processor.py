@@ -68,8 +68,8 @@ class Processor:
 
         parts.append(BASE_SYSTEM)
 
-        # 使用者記憶摘要
-        memories = await memory_read(self.user_id)
+        # Session 記憶摘要
+        memories = await memory_read(self.session_id)
         if memories:
             mem_lines = [f"- {m['key']}: {m['value']}" for m in memories[:20]]
             parts.append("## 使用者記憶\n" + "\n".join(mem_lines))
