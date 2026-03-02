@@ -6,6 +6,8 @@
 #   - create_session / list_sessions / get_session / delete_session
 #   - save_message / load_messages（訊息持久化與載入）
 #   - _init_project_dir：建立 .py-opencode/{skills/, context/} 並初始化 PROJECT.md
+#   - create_session 預設自動建立工作目錄 ~/.py-opencode/projects/<session_id>/，
+#     可透過 skip_workdir=True 跳過
 # 關聯：被 api/sessions.py, api/chat.py 引用，使用 storage/database.py, session/message.py
 ###
 
@@ -35,15 +37,19 @@ def _init_project_dir(project_dir: str) -> None:
     logger.info(f"已初始化專案目錄: {base}")
 
 
-async def create_session(user_id: str, provider: str, project_dir: str | None = None) -> dict:
+async def create_session(user_id: str, provider: str, project_dir: str | None = None, skip_workdir: bool = False) -> dict:
     """建立新 Session"""
-    # 初始化專案目錄結構
-    if project_dir:
-        _init_project_dir(project_dir)
-
     db = get_db()
     session_id = str(uuid4())
     now = datetime.now(timezone.utc).isoformat()
+
+    # 決定 project_dir
+    if project_dir:
+        _init_project_dir(project_dir)
+    elif not skip_workdir:
+        project_dir = str(Path.home() / ".py-opencode" / "projects" / session_id)
+        _init_project_dir(project_dir)
+
     await db.execute(
         "INSERT INTO sessions (id, user_id, provider, project_dir, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
         (session_id, user_id, provider, project_dir, now, now),

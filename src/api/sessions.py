@@ -2,6 +2,7 @@
 # api/sessions.py — Session REST CRUD
 #
 # 用途：GET/POST/DELETE /api/sessions
+# 輸入：CreateSessionRequest（provider, project_dir, skip_workdir）
 # 關聯：使用 auth.py, session/session.py
 ###
 
@@ -25,6 +26,7 @@ def init_sessions_api(config):
 class CreateSessionRequest(BaseModel):
     provider: str | None = None
     project_dir: str | None = None
+    skip_workdir: bool = False
 
 
 @router.get("")
@@ -39,7 +41,7 @@ async def post_session(
     user_id: str = Depends(get_current_user),
 ):
     provider = req.provider or (_app_config.default_provider if _app_config else "local")
-    session = await create_session(user_id, provider, req.project_dir)
+    session = await create_session(user_id, provider, req.project_dir, req.skip_workdir)
     return session
 
 

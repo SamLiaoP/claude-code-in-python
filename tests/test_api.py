@@ -106,6 +106,47 @@ async def test_create_session_with_project_dir():
 
 
 @pytest.mark.asyncio
+async def test_create_session_default_workdir():
+    """POST /api/sessions 不帶 project_dir 時自動建立工作目錄"""
+    import os, shutil
+    transport = ASGITransport(app=app)
+    headers = {"Authorization": "Bearer test-key-1"}
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/sessions",
+            json={"provider": "local"},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        project_dir = data["project_dir"]
+        assert project_dir is not None
+        assert data["id"] in project_dir
+        # 驗證目錄結構
+        base = os.path.join(project_dir, ".py-opencode")
+        assert os.path.isdir(os.path.join(base, "skills"))
+        assert os.path.isdir(os.path.join(base, "context"))
+    # 清理
+    if os.path.isdir(project_dir):
+        shutil.rmtree(project_dir)
+
+
+@pytest.mark.asyncio
+async def test_create_session_skip_workdir():
+    """POST /api/sessions 帶 skip_workdir=True 時 project_dir 為 None"""
+    transport = ASGITransport(app=app)
+    headers = {"Authorization": "Bearer test-key-1"}
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.post(
+            "/api/sessions",
+            json={"provider": "local", "skip_workdir": True},
+            headers=headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["project_dir"] is None
+
+
+@pytest.mark.asyncio
 async def test_memory_api():
     transport = ASGITransport(app=app)
     headers = {"Authorization": "Bearer test-key-1"}

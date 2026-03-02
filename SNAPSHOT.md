@@ -1,5 +1,14 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：Session 建立時預設自動建立工作目錄
+
+- `src/session/session.py`：`create_session` 新增 `skip_workdir` 參數；無 `project_dir` 時自動生成 `~/.py-opencode/projects/<session_id>/` 並初始化目錄結構
+- `src/api/sessions.py`：`CreateSessionRequest` 新增 `skip_workdir: bool = False`，傳遞給 `create_session`
+- `tests/test_api.py`：新增 `test_create_session_default_workdir`、`test_create_session_skip_workdir` 兩個測試
+- 8 個測試全部通過
+
+---
+
 ## 2026-03-02：OpenSpec 封存 + spec 同步更新
 
 將 `add-py-opencode-mvp` 提案封存至 `changes/archive/`，同時修正 spec 與程式碼的不一致：
