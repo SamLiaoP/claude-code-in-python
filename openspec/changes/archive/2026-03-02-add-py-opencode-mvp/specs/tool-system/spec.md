@@ -66,7 +66,7 @@
 - **THEN** 專案級版本覆蓋全域版本
 
 ### Requirement: Processor 狀態機
-Processor MUST 處理 LLM 串流事件（text_delta / tool_use_start / tool_use_input / tool_use_done / message_stop），自動循環執行 tool_use 並送回 LLM 繼續生成。MUST 實作 doom loop 偵測：同一工具用相同參數呼叫 3 次則中斷。
+Processor MUST 使用非串流 `chat()` 呼叫 LLM 取得完整結果（ChatResult 含 text + tool_calls），解析 tool_calls 後執行工具，將結果送回 LLM 繼續生成，直到 LLM 不再呼叫工具。MUST 實作 doom loop 偵測：同一工具用相同參數呼叫 3 次則中斷。
 
 #### Scenario: 工具呼叫自動循環
 - **WHEN** LLM 回應包含 tool_use

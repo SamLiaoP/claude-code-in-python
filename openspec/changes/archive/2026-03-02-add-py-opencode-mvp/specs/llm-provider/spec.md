@@ -4,26 +4,26 @@
 系統 SHALL 提供統一的 LLM Provider，使用 `litellm` 統一呼叫 100+ LLM 服務（Claude / GPT / Gemini / Ollama 等）。
 
 - model 字串使用 provider 前綴格式：`anthropic/claude-...`、`openai/gpt-4o`、`gemini/gemini-2.0-flash`、`ollama/llama3`
-- 底層使用 `litellm.acompletion(stream=True)` 進行串流呼叫
+- 底層使用 `litellm.acompletion(stream=False)` 進行非串流呼叫
 - 不直接引入 `anthropic` / `openai` / `google-genai` SDK（litellm 內部處理）
 
-Provider 類別 MUST 實作 `stream_chat(messages, tools, system) → AsyncGenerator[LLMEvent]` 介面。
+Provider 類別 MUST 實作 `chat(messages, tools, system) → ChatResult` 介面（非串流，一次回傳完整結果含 text + tool_calls）。`stream_chat()` 保留備用。
 
 #### Scenario: 使用 Ollama 本地模型對話
 - **WHEN** config.json 設定 provider 為 `{ "api_base": "http://localhost:11434", "model": "ollama/llama3" }`
-- **THEN** 系統透過 litellm 連線至 Ollama 進行串流對話
+- **THEN** 系統透過 litellm 連線至 Ollama 進行對話
 
 #### Scenario: 使用 Claude API 對話
 - **WHEN** config.json 設定 provider 為 `{ "api_key_env": "ANTHROPIC_API_KEY", "model": "anthropic/claude-sonnet-4-20250514" }`
-- **THEN** 系統透過 litellm 連線至 Claude API 進行串流對話
+- **THEN** 系統透過 litellm 連線至 Claude API 進行對話
 
 #### Scenario: 使用 GPT 模型對話
 - **WHEN** config.json 設定 provider 為 `{ "api_key_env": "OPENAI_API_KEY", "model": "openai/gpt-4o" }`
-- **THEN** 系統透過 litellm 連線至 OpenAI API 進行串流對話
+- **THEN** 系統透過 litellm 連線至 OpenAI API 進行對話
 
 #### Scenario: 使用 Gemini 模型對話
 - **WHEN** config.json 設定 provider 為 `{ "api_key_env": "GEMINI_API_KEY", "model": "gemini/gemini-2.0-flash" }`
-- **THEN** 系統透過 litellm 連線至 Google Gemini API 進行串流對話
+- **THEN** 系統透過 litellm 連線至 Google Gemini API 進行對話
 
 #### Scenario: Session 指定 Provider
 - **WHEN** 建立 Session 時指定 `provider: "local"`
