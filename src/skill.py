@@ -5,7 +5,7 @@
 # 主要功能：
 #   - scan_skills(): 掃描並索引所有 SKILL.md（只讀 frontmatter）
 #   - get_skill_info(name): 取得 SkillInfo（含 path），供 skill_tool 注入 base directory
-#   - get_skill_content(name): 讀取完整 SKILL.md 內容（lazy load）
+#   - get_skill_content(name): 讀取 SKILL.md 內容，去除 YAML frontmatter（lazy load）
 #   - list_skills(): 列出所有已索引的 skill
 # 關聯：被 tool/skill_tool.py, api/skills.py 引用
 ###
@@ -87,12 +87,13 @@ def get_skill_info(name: str) -> SkillInfo | None:
 
 
 def get_skill_content(name: str) -> str | None:
-    """讀取完整 SKILL.md 內容"""
+    """讀取 SKILL.md 內容（去除 YAML frontmatter）"""
     skill = _skills.get(name)
     if not skill:
         return None
     try:
-        return skill.path.read_text(encoding="utf-8")
+        post = frontmatter.load(str(skill.path))
+        return post.content
     except Exception as e:
         logger.error(f"讀取 SKILL.md 失敗: {skill.path} — {e}")
         return None

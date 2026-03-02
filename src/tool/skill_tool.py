@@ -50,7 +50,9 @@ class SkillTool(Tool):
 
         content = get_skill_content(name)
         if content is None:
-            return ToolResult(error=f"找不到 Skill: {name}")
+            from skill import list_skills
+            available = ", ".join(s["name"] for s in list_skills())
+            return ToolResult(error=f"找不到 Skill: {name}。可用的 Skills: {available}")
 
         from skill import get_skill_info
         skill_info = get_skill_info(name)

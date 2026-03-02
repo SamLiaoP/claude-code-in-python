@@ -31,6 +31,7 @@ def test_scan_skills_with_project():
         content = get_skill_content("test-skill")
         assert content is not None
         assert "This is a test skill" in content
+        assert "---" not in content  # frontmatter 應被移除
 
         xml = get_skill_names_xml()
         assert "test-skill" in xml

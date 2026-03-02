@@ -1,5 +1,14 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：Skill Tool 行為對齊 OpenCode
+
+- `src/skill.py`：`get_skill_content()` 改用 `frontmatter.load()` 解析，回傳 `post.content`（去除 YAML frontmatter）
+- `src/tool/skill_tool.py`：找不到 skill 時錯誤訊息列出所有可用技能名稱
+- `tests/test_skill.py`：新增 frontmatter 移除斷言，4 個測試全部通過
+- OpenSpec proposal: `update-skill-tool-align`
+
+---
+
 ## 2026-03-03：Session 建立時預設自動建立工作目錄
 
 - `src/session/session.py`：`create_session` 新增 `skip_workdir` 參數；無 `project_dir` 時自動生成 `~/.py-opencode/projects/<session_id>/` 並初始化目錄結構
