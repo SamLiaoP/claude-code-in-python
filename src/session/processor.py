@@ -3,10 +3,11 @@
 #
 # 用途：處理一輪對話：LLM 回應 → 偵測 tool_use → 執行工具 → 送回 LLM 繼續
 # 主要功能：
-#   - process_turn(): 一輪對話處理（可能多次 LLM 呼叫），支援 stream 參數切換串流/非串流模式
+#   - process_turn(): 一輪對話處理（可能多次 LLM 呼叫），支援 stream 參數切換串流/非串流模式，回傳 list[Message] 包含所有輪次的 assistant messages
 #   - 自動循環：tool_use → execute → send back
 #   - Doom loop 偵測：同參數 3 次中斷
 #   - ask_user 暫停機制
+#   - 429 速率限制重試時透過 on_event 推送 status 事件到前端
 #   - 使用 session 專屬 logger（日誌寫入 logs/sessions/<session_id>.log）
 # 關聯：被 api/chat.py 呼叫，使用 provider.py（LiteLLM）, tool/base.py, session/message.py, log_utils.py
 ###
@@ -84,24 +85,39 @@ class Processor:
         messages: list[Message],
         on_event: Callable[[dict], Any],
         stream: bool = False,
-    ) -> Message:
+    ) -> list[Message]:
         """
         處理一輪對話（可能多次 LLM 呼叫）。
         on_event: callback 推送 WebSocket 事件
         stream: True 使用串流模式逐字輸出，False 使用非串流模式一次回傳
-        回傳最終的 assistant Message
+        回傳所有輪次的 assistant Messages（含工具呼叫資訊）
         """
+        self.abort_event.clear()
         system = await self.build_system_prompt()
         tools_schema = self.tool_registry.get_tools_schema()
         assistant_msg = Message.assistant()
+        all_messages: list[Message] = []
         self._call_counts.clear()
 
         self.logger.debug("=== PROCESS TURN START (stream=%s) ===", stream)
         self.logger.debug("Tools schema count: %d", len(tools_schema) if tools_schema else 0)
         self.logger.debug("History messages: %d", len(messages))
 
-        # 轉換歷史訊息為 API 格式
-        api_messages = [m.to_api_format() for m in messages]
+        # 轉換歷史訊息為 API 格式（assistant 含 tool_calls 時需補上 tool result messages）
+        api_messages = []
+        for m in messages:
+            api_messages.append(m.to_api_format())
+            if m.role == "assistant":
+                tool_parts = [p for p in m.parts if isinstance(p, ToolPart)]
+                if tool_parts:
+                    api_messages.extend(build_tool_result_messages(tool_parts))
+
+        # 429 重試時推送狀態到前端
+        async def _on_retry(attempt: int, delay: int):
+            await on_event({
+                "type": "status",
+                "message": f"API 忙碌中，{delay} 秒後自動重試（第 {attempt} 次）...",
+            })
 
         while True:
             if self.abort_event.is_set():
@@ -119,6 +135,7 @@ class Processor:
                     messages=api_messages,
                     tools=tools_schema if tools_schema else None,
                     system=system,
+                    on_retry=_on_retry,
                 ):
                     if self.abort_event.is_set():
                         break
@@ -169,6 +186,7 @@ class Processor:
                     messages=api_messages,
                     tools=tools_schema if tools_schema else None,
                     system=system,
+                    on_retry=_on_retry,
                 )
 
                 # 處理文字回應
@@ -215,8 +233,9 @@ class Processor:
                     })
                     assistant_msg.parts.append(tp)
                     # doom loop → 結束整個 turn
+                    all_messages.append(assistant_msg)
                     await on_event({"type": "done"})
-                    return assistant_msg
+                    return all_messages
 
                 # ask_user 特殊處理：暫停等使用者回應
                 if tp.tool_name == "ask_user":
@@ -281,11 +300,16 @@ class Processor:
             api_messages.append(assistant_msg.to_api_format())
             api_messages.extend(build_tool_result_messages(current_tool_parts))
 
-            # 重置 assistant_msg 給下一輪
+            # 收集當前輪次的 assistant_msg，重置給下一輪
+            if assistant_msg.parts:
+                all_messages.append(assistant_msg)
             assistant_msg = Message.assistant()
 
+        # 最後一輪（無工具呼叫的純文字回應）
+        if assistant_msg.parts:
+            all_messages.append(assistant_msg)
         await on_event({"type": "done"})
-        return assistant_msg
+        return all_messages
 
     def submit_answer(self, answer: str):
         """使用者回答 ask_user 問題"""

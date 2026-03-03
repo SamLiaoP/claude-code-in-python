@@ -186,12 +186,17 @@ let currentToolEls = {};
 function handleWsEvent(event) {
   switch (event.type) {
     case "text_delta":
+      removeStatusMsg();
       if (!currentAssistantEl) {
         currentAssistantEl = appendMsg("assistant", "");
       }
       currentAssistantEl._rawText = (currentAssistantEl._rawText || "") + event.text;
       currentAssistantEl.innerHTML = renderMarkdown(currentAssistantEl._rawText);
       scrollBottom();
+      break;
+
+    case "status":
+      showStatus(event.message);
       break;
 
     case "tool_start":
@@ -206,7 +211,12 @@ function handleWsEvent(event) {
       renderAskUser(event);
       break;
 
+    case "history":
+      renderHistory(event.messages || []);
+      break;
+
     case "done":
+      removeStatusMsg();
       currentAssistantEl = null;
       currentToolEls = {};
       $btnAbort.disabled = true;
@@ -421,6 +431,42 @@ window.toggleSection = function(h3) {
   arrow.textContent = section.classList.contains("section-collapsed") ? "▶" : "▼";
 };
 
+// ── 歷史訊息渲染 ──
+function renderHistory(messages) {
+  $chatMessages.innerHTML = "";
+  for (const msg of messages) {
+    if (msg.role === "user") {
+      const text = (msg.parts || []).filter(p => p.type === "text").map(p => p.text).join("\n");
+      if (text) appendMsg("user", text);
+    } else if (msg.role === "assistant") {
+      for (const p of msg.parts || []) {
+        if (p.type === "text" && p.text) {
+          const el = appendMsg("assistant", "");
+          el._rawText = p.text;
+          el.innerHTML = renderMarkdown(p.text);
+        } else if (p.type === "tool_use") {
+          // 渲染工具呼叫卡片
+          const el = document.createElement("div");
+          el.className = "tool-call";
+          const statusText = p.status === "error" ? "錯誤" : "完成";
+          const statusColor = p.status === "error" ? "#e94560" : "#4caf50";
+          const resultLabel = p.status === "error" ? "--- 錯誤 ---" : "--- 結果 ---";
+          const resultContent = p.error || p.output || "";
+          el.innerHTML = `
+            <div class="tool-header" onclick="this.parentElement.classList.toggle('expanded')">
+              <span><span class="tool-name">${esc(p.tool_name || "tool")}</span></span>
+              <span class="tool-status" style="color:${statusColor}">${statusText}</span>
+            </div>
+            <div class="tool-body">${esc(JSON.stringify(p.input_data || {}, null, 2))}\n\n${resultLabel}\n${esc(resultContent)}</div>
+          `;
+          $chatMessages.appendChild(el);
+        }
+      }
+    }
+  }
+  scrollBottom();
+}
+
 // ── 工具函數 ──
 function esc(str) {
   const d = document.createElement("div");
@@ -431,6 +477,19 @@ function esc(str) {
 function renderMarkdown(text) {
   try { return marked.parse(text || ""); }
   catch { return esc(text || ""); }
+}
+
+function showStatus(msg) {
+  removeStatusMsg();
+  const el = document.createElement("div");
+  el.className = "status-msg";
+  el.textContent = msg;
+  $chatMessages.appendChild(el);
+  scrollBottom();
+}
+
+function removeStatusMsg() {
+  document.querySelectorAll(".status-msg").forEach(el => el.remove());
 }
 
 function scrollBottom() {

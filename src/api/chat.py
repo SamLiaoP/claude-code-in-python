@@ -3,14 +3,15 @@
 #
 # 用途：對話端點，處理 message / answer / abort 事件
 # 主要功能：
-#   - 連線時驗證 token，載入歷史訊息
+#   - 連線時驗證 token，載入歷史訊息並推送到前端（type: history）
 #   - 連線時根據 session project_dir 重新掃描 skills
-#   - 接收 user message → 觸發 Processor → 推送事件（支援 stream 參數切換串流/非串流）
-#   - 處理 ask_user answer 和 abort
+#   - 接收 user message → 以 asyncio.create_task 執行 Processor，主迴圈可繼續接收 abort
+#   - 處理 ask_user answer 和 abort（abort 時呼叫 processor.abort() + task.cancel()）
 #   - 使用 session 專屬 logger 記錄連線/斷線事件
 # 關聯：使用 auth.py, session/*, provider.py, tool/base.py, skill.py, log_utils.py
 ###
 
+import asyncio
 import json
 import logging
 from typing import Any
@@ -111,6 +112,20 @@ async def websocket_chat(
         except Exception:
             pass
 
+    # 推送歷史訊息到前端
+    history_data = []
+    for msg in history:
+        parts_data = json.loads(msg.to_json())
+        history_data.append({
+            "role": msg.role,
+            "parts": parts_data,
+            "created_at": msg.created_at,
+        })
+    await ws.send_json({"type": "history", "messages": history_data})
+
+    # 目前進行中的 process_turn task
+    current_task: asyncio.Task | None = None
+
     try:
         while True:
             raw = await ws.receive_text()
@@ -123,6 +138,10 @@ async def websocket_chat(
             msg_type = data.get("type")
 
             if msg_type == "message":
+                # 正在處理中則忽略新訊息
+                if current_task and not current_task.done():
+                    continue
+
                 content = data.get("content", "")
                 if not content.strip():
                     continue
@@ -135,13 +154,18 @@ async def websocket_chat(
                 await save_message(session_id, user_msg)
                 history.append(user_msg)
 
-                # 處理一輪對話
-                assistant_msg = await processor.process_turn(history, on_event, stream=use_stream)
+                # 以 task 形式執行，讓主迴圈可繼續接收 abort
+                async def run_turn(stream: bool):
+                    try:
+                        msgs = await processor.process_turn(history, on_event, stream=stream)
+                        for m in msgs:
+                            if m.parts:
+                                await save_message(session_id, m)
+                                history.append(m)
+                    except asyncio.CancelledError:
+                        await on_event({"type": "done"})
 
-                # 儲存 assistant message
-                if assistant_msg.parts:
-                    await save_message(session_id, assistant_msg)
-                    history.append(assistant_msg)
+                current_task = asyncio.create_task(run_turn(use_stream))
 
             elif msg_type == "answer":
                 # 使用者回答 ask_user 問題
@@ -152,7 +176,12 @@ async def websocket_chat(
 
             elif msg_type == "abort":
                 processor.abort()
+                if current_task and not current_task.done():
+                    current_task.cancel()
 
     except WebSocketDisconnect:
+        # 斷線時取消進行中的 task
+        if current_task and not current_task.done():
+            current_task.cancel()
         slog.info("WebSocket 斷線: user=%s", user_id)
         logger.info(f"WebSocket 斷線: session={session_id}, user={user_id}")

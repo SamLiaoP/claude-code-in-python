@@ -7,16 +7,19 @@
 #   - LLMProvider.chat() — 非串流模式，一次回傳完整結果（含 tool_calls）
 #   - LLMProvider.stream_chat() — 串流模式（保留備用）
 #   - system prompt 注入為 {"role": "system"} 訊息（LiteLLM 慣例）
+#   - 429 速率限制自動重試（最多 3 次，間隔遞增 5→15→30 秒），支援 on_retry callback
 # 關聯：被 session/processor.py 呼叫，讀取 config.ProviderConfig
 #   - 支援外部注入 logger（Processor 注入 session logger），完整記錄請求/回應到 session log
 ###
 
+import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Callable
 
 import litellm
+from litellm.exceptions import RateLimitError
 
 from config import ProviderConfig
 
@@ -96,16 +99,36 @@ class LLMProvider:
             if self.tool_calls is None:
                 self.tool_calls = []
 
+    # 重試間隔（秒）
+    RETRY_DELAYS = [5, 15, 30]
+
     async def chat(
         self,
         messages: list[dict],
         tools: list[dict] | None = None,
         system: str = "",
         max_tokens: int = 4096,
+        on_retry: Callable[[int, int], Any] | None = None,
     ) -> "LLMProvider.ChatResult":
-        """非串流對話，一次回傳完整結果"""
+        """非串流對話，一次回傳完整結果。遇到 429 自動重試。"""
         _, kwargs = self._build_kwargs(messages, tools, system, max_tokens, stream=False)
-        response = await litellm.acompletion(**kwargs)
+
+        last_err = None
+        for attempt in range(1 + len(self.RETRY_DELAYS)):
+            try:
+                response = await litellm.acompletion(**kwargs)
+                break
+            except RateLimitError as e:
+                last_err = e
+                if attempt < len(self.RETRY_DELAYS):
+                    delay = self.RETRY_DELAYS[attempt]
+                    self.logger.warning("429 RateLimitError, 第 %d 次重試，等待 %d 秒", attempt + 1, delay)
+                    if on_retry:
+                        await on_retry(attempt + 1, delay)
+                    await asyncio.sleep(delay)
+                else:
+                    self.logger.error("429 重試用盡（%d 次），拋出例外", len(self.RETRY_DELAYS))
+                    raise last_err
 
         result = LLMProvider.ChatResult()
         choice = response.choices[0] if response.choices else None
@@ -134,14 +157,30 @@ class LLMProvider:
         tools: list[dict] | None = None,
         system: str = "",
         max_tokens: int = 4096,
+        on_retry: Callable[[int, int], Any] | None = None,
     ) -> AsyncGenerator[LLMEvent, None]:
-        """串流對話，產生 LLMEvent（保留備用）"""
+        """串流對話，產生 LLMEvent（保留備用）。遇到 429 自動重試。"""
         _, kwargs = self._build_kwargs(messages, tools, system, max_tokens, stream=True)
 
         # 追蹤 tool_calls 狀態（index -> {id, name, arguments}）
         active_tools: dict[int, dict] = {}
 
-        response = await litellm.acompletion(**kwargs)
+        last_err = None
+        for attempt in range(1 + len(self.RETRY_DELAYS)):
+            try:
+                response = await litellm.acompletion(**kwargs)
+                break
+            except RateLimitError as e:
+                last_err = e
+                if attempt < len(self.RETRY_DELAYS):
+                    delay = self.RETRY_DELAYS[attempt]
+                    self.logger.warning("429 RateLimitError (stream), 第 %d 次重試，等待 %d 秒", attempt + 1, delay)
+                    if on_retry:
+                        await on_retry(attempt + 1, delay)
+                    await asyncio.sleep(delay)
+                else:
+                    self.logger.error("429 重試用盡（stream, %d 次），拋出例外", len(self.RETRY_DELAYS))
+                    raise last_err
 
         async for chunk in response:
             delta = chunk.choices[0].delta if chunk.choices else None

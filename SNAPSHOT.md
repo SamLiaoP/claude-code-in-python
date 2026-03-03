@@ -1,5 +1,42 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：修復 429 Too Many Requests + 前端重試提示
+
+**問題**：LiteLLM 呼叫 Anthropic API 頻繁遇到 429 速率限制錯誤，無重試邏輯且前端無提示，使用者以為系統掛了。
+
+**修改檔案**：
+- `src/provider.py`：`chat()` 和 `stream_chat()` 加入 429 自動重試迴圈（最多 3 次，間隔 5→15→30 秒），新增 `on_retry` callback 參數
+- `src/session/processor.py`：`process_turn()` 傳入 `on_retry` callback，重試時推送 `{"type": "status", "message": "..."}` 到前端
+- `src/static/app.js`：新增 `case "status"` 處理、`showStatus()` / `removeStatusMsg()` 函數，收到 `text_delta` 或 `done` 時自動移除
+- `src/static/style.css`：`.status-msg` 灰色小字 + pulse 動畫（opacity 閃爍）
+
+**OpenSpec proposal**：`openspec/changes/add-rate-limit-retry/`
+
+---
+
+## 2026-03-03：修復歷史對話缺失工具呼叫結果
+
+**問題**：切換 Session 再切回來時，工具呼叫結果不見了，只剩純文字。根因是 `process_turn()` 每輪 LLM 回應後重設 `assistant_msg`，最終只回傳最後一輪的 message，中間輪次（含 tool call 資訊）從未持久化。
+
+**修改檔案**：
+- `src/session/processor.py`：`process_turn()` 新增 `all_messages` 收集每輪的 assistant_msg，回傳型別改為 `list[Message]`；歷史訊息轉 API 格式時，assistant 含 tool_calls 的 message 後面補上對應的 `role=tool` result messages，避免 API 400 錯誤
+- `src/api/chat.py`：`run_turn()` 改為遍歷回傳的 list，逐一 save + append 到 history
+
+---
+
+## 2026-03-03：修復中止按鈕 + 載入歷史對話紀錄
+
+**問題**：
+1. 中止按鈕無效 — `process_turn` 是 awaited 的，WebSocket handler 在處理期間無法接收 abort 訊息
+2. 歷史對話不顯示 — 後端載入歷史給 LLM 用，但從未推送到前端
+
+**修改檔案**：
+- `src/api/chat.py`：`process_turn` 改為 `asyncio.create_task()` 執行，主迴圈繼續監聽 abort/answer；連線後推送 `{"type": "history", "messages": [...]}` 到前端；abort 時呼叫 `processor.abort()` + `task.cancel()`
+- `src/session/processor.py`：`process_turn()` 開頭加 `self.abort_event.clear()`，避免上次 abort 狀態殘留
+- `src/static/app.js`：新增 `case "history"` 處理和 `renderHistory()` 函數，渲染 user text / assistant text（含 Markdown）/ tool 呼叫卡片
+
+---
+
 ## 2026-03-03：Session Log 補完 — 記錄完整 LLM 請求/回應
 
 讓 session log 包含 provider 層的完整 LLM 請求和回應，方便 debug。

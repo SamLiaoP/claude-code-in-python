@@ -89,5 +89,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .section-toggle .toggle-arrow { display: inline-block; width: 14px; font-size: 10px; }
 .section-collapsed .section-content { display: none; }
 
+/* 重試狀態提示 */
+.status-msg { color: #888; font-size: 12px; padding: 8px 14px; animation: pulse 1.5s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
 /* 空狀態 */
 .empty-state { color: #555; font-size: 13px; text-align: center; padding: 40px 16px; }
