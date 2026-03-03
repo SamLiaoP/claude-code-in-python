@@ -1,5 +1,54 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：Session Log 補完 — 記錄完整 LLM 請求/回應
+
+讓 session log 包含 provider 層的完整 LLM 請求和回應，方便 debug。
+
+**修改檔案**：
+- `src/provider.py`：`LLMProvider.__init__()` 新增 `logger` 可選參數，所有 debug log 改用 `self.logger`；移除 message content 500 字截斷和 tool arguments 300 字截斷，改為完整記錄
+- `src/session/processor.py`：`__init__` 中將 session logger 注入 `self.provider.logger`；移除 `process_turn()` 的 system prompt 截斷摘要（provider 層已完整記錄）
+
+---
+
+## 2026-03-03：三項功能改進 — Session 日誌分離 + Streaming 切換 + 側欄收合
+
+### 1. Logs 按 Session 區分
+- 新增 `src/log_utils.py`：`get_session_logger(session_id)` 回傳寫入 `logs/sessions/<session_id>.log` 的 logger
+- `src/session/processor.py`：改用 session 專屬 logger（`self.logger`），所有 LLM/Tool 日誌寫入 session 專屬檔案
+- `src/api/chat.py`：WebSocket 連線/斷線事件寫入 session logger
+- 全域 `logs/app.log` 保留，記錄啟動/路由等非 session 事件
+
+### 2. Streaming / 非 Streaming 模式切換
+- `src/session/processor.py`：`process_turn()` 新增 `stream: bool` 參數
+  - `stream=False`（預設）：呼叫 `provider.chat()`，完成後一次推送
+  - `stream=True`：呼叫 `provider.stream_chat()`，逐 chunk 推送 `text_delta`
+- `src/api/chat.py`：從 WebSocket message 解析 `stream` 欄位傳給 processor
+- `src/static/index.html`：Model section 下方加 Streaming checkbox
+- `src/static/app.js`：發送訊息時帶 `stream: true/false`
+
+### Bug 修正：Skills 切換 Session 時未即時更新
+- `src/api/skills.py`：`GET /api/skills` 新增 `session_id` query param，有帶時先根據 session 的 `project_dir` 重新掃描再回傳
+- `src/static/app.js`：`loadSkills()` 帶上 `currentSessionId`
+
+### 3. 右側欄可伸縮顯示
+- `src/static/index.html`：Skills/Model/Files 的 `<h3>` 改成可點擊 toggle header（含 ▶/▼ 箭頭）
+- `src/static/style.css`：`.section-collapsed .section-content { display: none }` 收合樣式
+- `src/static/app.js`：`toggleSection()` 函數切換 `.section-collapsed` class
+- Skills 預設收合，Model 和 Files 預設展開
+
+---
+
+## 2026-03-03：封存已完成的 OpenSpec Changes
+
+將 3 個已完成的變更提案封存至 `openspec/changes/archive/`：
+- `update-skill-tool-align` → `2026-03-03-update-skill-tool-align`
+- `update-memory-session-scoped` → `2026-03-03-update-memory-session-scoped`
+- `update-session-default-workdir` → `2026-03-03-update-session-default-workdir`
+
+剩餘進行中：`add-frontend-demo-ui`（0/10 tasks）
+
+---
+
 ## 2026-03-03：前端功能增強 — 開啟資料夾、Model 切換、移除 API Key
 
 **新功能**：

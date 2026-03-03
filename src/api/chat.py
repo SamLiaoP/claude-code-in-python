@@ -1,13 +1,14 @@
 ###
 # api/chat.py — WebSocket /ws/chat/{session_id}
 #
-# 用途：串流對話端點，處理 message / answer / abort 事件
+# 用途：對話端點，處理 message / answer / abort 事件
 # 主要功能：
 #   - 連線時驗證 token，載入歷史訊息
 #   - 連線時根據 session project_dir 重新掃描 skills
-#   - 接收 user message → 觸發 Processor → 串流推送事件
+#   - 接收 user message → 觸發 Processor → 推送事件（支援 stream 參數切換串流/非串流）
 #   - 處理 ask_user answer 和 abort
-# 關聯：使用 auth.py, session/*, provider.py, tool/base.py, skill.py
+#   - 使用 session 專屬 logger 記錄連線/斷線事件
+# 關聯：使用 auth.py, session/*, provider.py, tool/base.py, skill.py, log_utils.py
 ###
 
 import json
@@ -18,6 +19,7 @@ from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
 from auth import authenticate_ws
 from config import AppConfig
+from log_utils import get_session_logger
 from provider import LLMProvider
 from session.message import Message
 from session.processor import Processor
@@ -81,6 +83,10 @@ async def websocket_chat(
 
     provider = LLMProvider(provider_config)
 
+    # session 專屬 logger
+    slog = get_session_logger(session_id)
+    slog.info("WebSocket 連線: user=%s, provider=%s", user_id, provider_name)
+
     # 根據 session project_dir 重新掃描 skills
     project_dir = session.get("project_dir")
     scan_skills(project_dir)
@@ -121,13 +127,16 @@ async def websocket_chat(
                 if not content.strip():
                     continue
 
+                # 是否使用串流模式
+                use_stream = data.get("stream", False)
+
                 # 建立 user message 並儲存
                 user_msg = Message.user(content)
                 await save_message(session_id, user_msg)
                 history.append(user_msg)
 
                 # 處理一輪對話
-                assistant_msg = await processor.process_turn(history, on_event)
+                assistant_msg = await processor.process_turn(history, on_event, stream=use_stream)
 
                 # 儲存 assistant message
                 if assistant_msg.parts:
@@ -145,4 +154,5 @@ async def websocket_chat(
                 processor.abort()
 
     except WebSocketDisconnect:
+        slog.info("WebSocket 斷線: user=%s", user_id)
         logger.info(f"WebSocket 斷線: session={session_id}, user={user_id}")

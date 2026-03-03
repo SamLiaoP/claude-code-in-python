@@ -8,6 +8,7 @@
 #   - LLMProvider.stream_chat() — 串流模式（保留備用）
 #   - system prompt 注入為 {"role": "system"} 訊息（LiteLLM 慣例）
 # 關聯：被 session/processor.py 呼叫，讀取 config.ProviderConfig
+#   - 支援外部注入 logger（Processor 注入 session logger），完整記錄請求/回應到 session log
 ###
 
 import json
@@ -35,11 +36,12 @@ class LLMEvent:
 class LLMProvider:
     """統一 LLM Provider，透過 litellm 存取不同後端"""
 
-    def __init__(self, config: ProviderConfig):
+    def __init__(self, config: ProviderConfig, logger: logging.Logger | None = None):
         self.config = config
         self.model = config.model
         self.api_key = config.resolve_api_key()
         self.api_base = config.api_base
+        self.logger = logger or logging.getLogger(__name__)
 
     def _build_kwargs(
         self,
@@ -69,19 +71,18 @@ class LLMProvider:
             kwargs["tools"] = tools
 
         # --- DEBUG LOG ---
-        logger.debug("=== LLM REQUEST (stream=%s) ===", stream)
-        logger.debug("Model: %s", self.model)
+        self.logger.debug("=== LLM REQUEST (stream=%s) ===", stream)
+        self.logger.debug("Model: %s", self.model)
         for i, msg in enumerate(all_messages):
             role = msg.get("role", "?")
             content = msg.get("content", "")
-            preview = content[:500] + "..." if isinstance(content, str) and len(content) > 500 else content
-            logger.debug("Message[%d] role=%s: %s", i, role, preview)
+            self.logger.debug("Message[%d] role=%s: %s", i, role, content)
             if msg.get("tool_calls"):
-                logger.debug("  tool_calls: %s", json.dumps(msg["tool_calls"], ensure_ascii=False)[:500])
+                self.logger.debug("  tool_calls: %s", json.dumps(msg["tool_calls"], ensure_ascii=False))
         if tools:
             tool_names = [t.get("function", {}).get("name", t.get("name", "?")) for t in tools]
-            logger.debug("Tools: %s", tool_names)
-        logger.debug("=== END LLM REQUEST ===")
+            self.logger.debug("Tools: %s", tool_names)
+        self.logger.debug("=== END LLM REQUEST ===")
 
         return all_messages, kwargs
 
@@ -118,12 +119,12 @@ class LLMProvider:
                         "arguments": tc.function.arguments,
                     })
 
-        logger.debug("=== LLM RESPONSE ===")
-        logger.debug("Text (%d chars): %s", len(result.text), result.text[:500])
+        self.logger.debug("=== LLM RESPONSE ===")
+        self.logger.debug("Text (%d chars): %s", len(result.text), result.text)
         if result.tool_calls:
             for tc in result.tool_calls:
-                logger.debug("Tool call: %s(%s)", tc["name"], tc["arguments"][:300])
-        logger.debug("=== END LLM RESPONSE ===")
+                self.logger.debug("Tool call: %s(%s)", tc["name"], tc["arguments"])
+        self.logger.debug("=== END LLM RESPONSE ===")
 
         return result
 

@@ -34,16 +34,25 @@
     <!-- 右側欄：Model / Skills / Files -->
     <aside id="sidebar-right">
       <section id="model-section">
-        <h3>Model</h3>
-        <select id="model-select"></select>
+        <h3 class="section-toggle" onclick="toggleSection(this)"><span class="toggle-arrow">▼</span> Model</h3>
+        <div class="section-content">
+          <select id="model-select"></select>
+          <label class="stream-toggle">
+            <input type="checkbox" id="stream-checkbox"> Streaming 模式
+          </label>
+        </div>
       </section>
-      <section id="skills-section">
-        <h3>Skills</h3>
-        <div id="skills-list"></div>
+      <section id="skills-section" class="section-collapsed">
+        <h3 class="section-toggle" onclick="toggleSection(this)"><span class="toggle-arrow">▶</span> Skills</h3>
+        <div class="section-content">
+          <div id="skills-list"></div>
+        </div>
       </section>
       <section id="files-section">
-        <h3>目錄瀏覽</h3>
-        <div id="files-tree"></div>
+        <h3 class="section-toggle" onclick="toggleSection(this)"><span class="toggle-arrow">▼</span> 目錄瀏覽</h3>
+        <div class="section-content">
+          <div id="files-tree"></div>
+        </div>
       </section>
     </aside>
   </div>

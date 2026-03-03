@@ -165,7 +165,8 @@ function closeWs() {
 function sendMessage() {
   const text = $chatInput.value.trim();
   if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-  ws.send(JSON.stringify({ type: "message", content: text }));
+  const useStream = document.getElementById("stream-checkbox")?.checked || false;
+  ws.send(JSON.stringify({ type: "message", content: text, stream: useStream }));
   appendMsg("user", text);
   $chatInput.value = "";
   $btnAbort.disabled = false;
@@ -337,7 +338,8 @@ async function switchModel() {
 // ── Skills ──
 async function loadSkills() {
   try {
-    const skills = await api("GET", "/api/skills");
+    const url = currentSessionId ? `/api/skills?session_id=${currentSessionId}` : "/api/skills";
+    const skills = await api("GET", url);
     if (!skills.length) {
       $skillsList.innerHTML = '<div class="empty-state">無可用 Skills</div>';
       return;
@@ -409,6 +411,14 @@ window.openFolder = async function(path) {
   try {
     await api("POST", "/api/files/open", { session_id: currentSessionId, path });
   } catch (e) { alert("開啟失敗：" + e.message); }
+};
+
+// ── 側欄 Section 收合/展開 ──
+window.toggleSection = function(h3) {
+  const section = h3.closest("section");
+  const arrow = h3.querySelector(".toggle-arrow");
+  section.classList.toggle("section-collapsed");
+  arrow.textContent = section.classList.contains("section-collapsed") ? "▶" : "▼";
 };
 
 // ── 工具函數 ──

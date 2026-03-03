@@ -8,7 +8,16 @@ TBD - created by archiving change add-py-opencode-mvp. Update Purpose after arch
 
 #### Scenario: 建立新 Session
 - **WHEN** 使用者發送 POST /api/sessions 帶 provider 和 project_dir
-- **THEN** 系統建立新 Session 並回傳 id、provider、created_at
+- **THEN** 系統建立新 Session 並回傳 id、provider、project_dir、created_at
+
+#### Scenario: 建立 Session 未指定 project_dir 時自動建立工作目錄
+- **WHEN** 使用者發送 POST /api/sessions 未帶 project_dir 且 skip_workdir 為 false（預設）
+- **THEN** 系統自動使用 `~/.py-opencode/projects/<session_id>/` 作為 project_dir
+- **AND** 初始化該目錄下的 .py-opencode/skills/ 和 .py-opencode/context/ 結構
+
+#### Scenario: 建立 Session 時跳過工作目錄
+- **WHEN** 使用者發送 POST /api/sessions 帶 skip_workdir=true
+- **THEN** 系統不建立任何工作目錄，project_dir 為 null
 
 #### Scenario: 建立 Session 時初始化專案目錄
 - **WHEN** 使用者發送 POST /api/sessions 帶 project_dir
@@ -52,4 +61,16 @@ Session 和訊息 MUST 持久化至 SQLite。使用者重新連線 WebSocket 時
 #### Scenario: PROJECT.md 存在時注入
 - **WHEN** Session 指定的 project_dir 下存在 `.py-opencode/context/PROJECT.md`
 - **THEN** 系統將其內容注入 system prompt 開頭
+
+### Requirement: 切換 Session Provider
+系統 MUST 提供 PATCH /api/sessions/{id} 端點，允許更新 Session 的 provider 欄位。更新後，前端需重新連線 WebSocket 使新 Provider 生效。
+
+#### Scenario: 切換 Provider
+- **WHEN** PATCH /api/sessions/{id} 帶 { "provider": "claude" }
+- **THEN** 該 Session 的 provider 欄位更新為 "claude"
+- **AND** 下次 WebSocket 連線使用新的 Provider
+
+#### Scenario: 指定不存在的 Provider
+- **WHEN** PATCH /api/sessions/{id} 帶 { "provider": "不存在" }
+- **THEN** 回傳 400 錯誤
 
