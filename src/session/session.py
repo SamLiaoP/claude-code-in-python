@@ -4,6 +4,9 @@
 # 用途：管理對話 Session 的生命週期
 # 主要功能：
 #   - create_session / list_sessions / get_session / delete_session
+#   - update_session_title：更新 Session 的 title 欄位
+#   - update_session_provider：更新 Session 的 provider 欄位
+#   - update_session_model：更新 Session 的 model 欄位
 #   - save_message / load_messages（訊息持久化與載入）
 #   - _init_project_dir：建立 .py-opencode/{skills/, context/} 並初始化 PROJECT.md
 #   - create_session 預設自動建立工作目錄 ~/.py-opencode/projects/<session_id>/，
@@ -37,7 +40,7 @@ def _init_project_dir(project_dir: str) -> None:
     logger.info(f"已初始化專案目錄: {base}")
 
 
-async def create_session(user_id: str, provider: str, project_dir: str | None = None, skip_workdir: bool = False) -> dict:
+async def create_session(user_id: str, provider: str, project_dir: str | None = None, skip_workdir: bool = False, model: str | None = None) -> dict:
     """建立新 Session"""
     db = get_db()
     session_id = str(uuid4())
@@ -51,23 +54,23 @@ async def create_session(user_id: str, provider: str, project_dir: str | None = 
         _init_project_dir(project_dir)
 
     await db.execute(
-        "INSERT INTO sessions (id, user_id, provider, project_dir, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-        (session_id, user_id, provider, project_dir, now, now),
+        "INSERT INTO sessions (id, user_id, provider, model, project_dir, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (session_id, user_id, provider, model, project_dir, now, now),
     )
     await db.commit()
-    return {"id": session_id, "provider": provider, "project_dir": project_dir, "created_at": now}
+    return {"id": session_id, "provider": provider, "model": model, "project_dir": project_dir, "created_at": now}
 
 
 async def list_sessions(user_id: str) -> list[dict]:
     """列出使用者的所有 Session"""
     db = get_db()
     cursor = await db.execute(
-        "SELECT id, provider, title, project_dir, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC",
+        "SELECT id, provider, model, title, project_dir, created_at, updated_at FROM sessions WHERE user_id = ? ORDER BY updated_at DESC",
         (user_id,),
     )
     rows = await cursor.fetchall()
     return [
-        {"id": r[0], "provider": r[1], "title": r[2], "project_dir": r[3], "created_at": r[4], "updated_at": r[5]}
+        {"id": r[0], "provider": r[1], "model": r[2], "title": r[3], "project_dir": r[4], "created_at": r[5], "updated_at": r[6]}
         for r in rows
     ]
 
@@ -76,16 +79,52 @@ async def get_session(session_id: str, user_id: str) -> dict | None:
     """取得 Session（含權限驗證）"""
     db = get_db()
     cursor = await db.execute(
-        "SELECT id, user_id, provider, title, project_dir, created_at, updated_at FROM sessions WHERE id = ? AND user_id = ?",
+        "SELECT id, user_id, provider, model, title, project_dir, created_at, updated_at FROM sessions WHERE id = ? AND user_id = ?",
         (session_id, user_id),
     )
     row = await cursor.fetchone()
     if not row:
         return None
     return {
-        "id": row[0], "user_id": row[1], "provider": row[2], "title": row[3],
-        "project_dir": row[4], "created_at": row[5], "updated_at": row[6],
+        "id": row[0], "user_id": row[1], "provider": row[2], "model": row[3],
+        "title": row[4], "project_dir": row[5], "created_at": row[6], "updated_at": row[7],
     }
+
+
+async def update_session_title(session_id: str, user_id: str, title: str) -> bool:
+    """更新 Session 的 title 欄位"""
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await db.execute(
+        "UPDATE sessions SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+        (title, now, session_id, user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def update_session_provider(session_id: str, user_id: str, provider: str) -> bool:
+    """更新 Session 的 provider 欄位"""
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await db.execute(
+        "UPDATE sessions SET provider = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+        (provider, now, session_id, user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
+
+
+async def update_session_model(session_id: str, user_id: str, model: str) -> bool:
+    """更新 Session 的 model 欄位"""
+    db = get_db()
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await db.execute(
+        "UPDATE sessions SET model = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+        (model, now, session_id, user_id),
+    )
+    await db.commit()
+    return cursor.rowcount > 0
 
 
 async def delete_session(session_id: str, user_id: str) -> bool:

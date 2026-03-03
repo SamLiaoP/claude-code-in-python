@@ -1,5 +1,48 @@
 # SNAPSHOT — 變更紀錄
 
+## 2026-03-03：前端功能增強 — 開啟資料夾、Model 切換、移除 API Key
+
+**新功能**：
+- 目錄瀏覽加「在 Finder 中開啟」按鈕（`POST /api/files/open`，支援 macOS/Windows/Linux）
+- Claude Model 切換（`GET /api/models` 回傳 6 個 Claude 模型 + `PATCH /api/sessions/{id}` 支援 model 欄位）
+  - Opus 4.6, Sonnet 4.6, Haiku 4.5, Sonnet 4.5, Opus 4.5, Sonnet 4
+- sessions 表新增 `model` 欄位（自動 ALTER TABLE migration）
+- chat.py 連線時若 session 有指定 model，覆蓋 provider 預設 model
+- 移除頂部 API Key 輸入欄（後端已支援無 token 預設使用者）
+
+**修改檔案**：
+- `src/storage/database.py`：新增 `_migrate_add_model_column` migration
+- `src/session/session.py`：create/get/list 加 model 欄位、新增 `update_session_model()`
+- `src/api/sessions.py`：新增 `models_router`（GET /api/models）、PATCH 支援 model
+- `src/api/chat.py`：session model 覆蓋 provider 預設 model
+- `src/api/files.py`：新增 `POST /api/files/open`
+- `src/main.py`：掛載 models_router
+- `src/static/`：移除 API Key、加 model 下拉選單、加開啟資料夾按鈕
+
+---
+
+## 2026-03-03：新增前端展示介面 + Provider 切換
+
+新增純 HTML + Vanilla JS + CSS 前端，由 FastAPI StaticFiles 直接提供。零建構步驟。
+
+**後端新增/修改**：
+- `src/api/files.py`：新增 GET /api/files 目錄瀏覽 API，含路徑遍歷防護
+- `src/api/sessions.py`：新增 GET /api/providers（列出可用 LLM）、PATCH /api/sessions/{id}（切換 Provider）
+- `src/session/session.py`：新增 `update_session_provider()` 更新 DB provider 欄位
+- `src/main.py`：掛載 files router、providers router、StaticFiles（html=True）
+
+**前端**：
+- `src/static/index.html`：三欄佈局（Session 列表 / 聊天區 / Provider+Skills+目錄）
+- `src/static/style.css`：暗色主題 UI
+- `src/static/app.js`：Session 管理、WebSocket 串流聊天（text_delta/tool_start/tool_result/question/done/error）、Provider 切換、Skills 顯示、目錄瀏覽（懶載入展開）、Markdown 渲染（marked.js CDN）、ask_user 互動卡片
+
+**測試**：
+- `tests/test_files_api.py`：6 個測試（列出檔案、路徑遍歷防護、無效 Session、providers API、PATCH provider、無效 provider），全部通過
+
+**OpenSpec proposal**：`openspec/changes/add-frontend-demo-ui/`
+
+---
+
 ## 2026-03-03：記憶體綁定 Session（不再跨 Session 共享）
 
 **BREAKING CHANGE**：`user_memories` 表主鍵從 `(user_id, key)` 改為 `(session_id, key)`，舊資料無法遷移。

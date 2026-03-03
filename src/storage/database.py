@@ -3,7 +3,7 @@
 #
 # 用途：管理 aiosqlite 連線，初始化 sessions / messages / user_memories 三張表
 # 主要功能：
-#   - init_db(db_path) 初始化 schema（含 migration）
+#   - init_db(db_path) 初始化 schema（含 migration：user_memories 舊表重建、sessions 加 model 欄位）
 #   - get_db() 取得全域 db 連線
 # 關聯：被 session/session.py, session/memory.py, api/ 引用
 ###
@@ -50,6 +50,15 @@ async def _migrate_user_memories(db: aiosqlite.Connection):
         await db.commit()
 
 
+async def _migrate_add_model_column(db: aiosqlite.Connection):
+    """sessions 表加 model 欄位（如果不存在）"""
+    cursor = await db.execute("PRAGMA table_info(sessions)")
+    columns = [row[1] for row in await cursor.fetchall()]
+    if "model" not in columns:
+        await db.execute("ALTER TABLE sessions ADD COLUMN model TEXT")
+        await db.commit()
+
+
 async def init_db(db_path: str) -> aiosqlite.Connection:
     """初始化資料庫 schema 並回傳連線"""
     global _db
@@ -60,6 +69,8 @@ async def init_db(db_path: str) -> aiosqlite.Connection:
     # migration：舊表有 user_id 則 DROP 重建
     await _migrate_user_memories(_db)
     await _db.executescript(SCHEMA_SQL)
+    # migration：sessions 表加 model 欄位
+    await _migrate_add_model_column(_db)
     await _db.commit()
     return _db
 

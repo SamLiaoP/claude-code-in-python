@@ -1,0 +1,84 @@
+/* 全域 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+
+/* 頂部列 */
+#top-bar { display: flex; align-items: center; padding: 8px 16px; background: #16213e; border-bottom: 1px solid #0f3460; }
+.logo { font-size: 18px; font-weight: 700; color: #e94560; }
+
+/* 三欄佈局 */
+#app { display: flex; flex: 1; overflow: hidden; }
+
+/* 左側欄 */
+#sidebar-left { width: 250px; background: #16213e; border-right: 1px solid #0f3460; display: flex; flex-direction: column; overflow-y: auto; }
+#btn-new-session { margin: 12px; padding: 8px; background: #e94560; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }
+#btn-new-session:hover { background: #c73550; }
+#session-list { flex: 1; overflow-y: auto; }
+.session-item { padding: 10px 12px; border-bottom: 1px solid #0f3460; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+.session-item:hover, .session-item.active { background: #0f3460; }
+.session-info { flex: 1; min-width: 0; }
+.session-title { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-meta { font-size: 11px; color: #888; margin-top: 2px; }
+.session-delete { background: none; border: none; color: #e94560; cursor: pointer; font-size: 16px; padding: 0 4px; }
+.rename-input { width: 100%; padding: 2px 4px; background: #1a1a2e; color: #e0e0e0; border: 1px solid #e94560; border-radius: 3px; font-size: 13px; outline: none; }
+
+/* 中間聊天區 */
+#chat-area { flex: 1; display: flex; flex-direction: column; }
+#chat-messages { flex: 1; overflow-y: auto; padding: 16px; }
+.msg { margin-bottom: 12px; padding: 10px 14px; border-radius: 8px; max-width: 90%; line-height: 1.5; font-size: 14px; }
+.msg.user { background: #0f3460; align-self: flex-end; margin-left: auto; }
+.msg.assistant { background: #1a1a2e; border: 1px solid #0f3460; }
+.msg.assistant p { margin-bottom: 6px; }
+.msg.assistant pre { background: #111; padding: 8px; border-radius: 4px; overflow-x: auto; margin: 6px 0; }
+.msg.assistant code { font-size: 13px; }
+
+/* Tool 呼叫 */
+.tool-call { background: #111; border: 1px solid #333; border-radius: 6px; margin: 6px 0; font-size: 13px; }
+.tool-header { padding: 6px 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; color: #aaa; }
+.tool-header .tool-name { color: #e94560; font-weight: 600; }
+.tool-header .tool-status { font-size: 11px; }
+.tool-body { padding: 8px 10px; border-top: 1px solid #333; display: none; white-space: pre-wrap; word-break: break-all; max-height: 300px; overflow-y: auto; }
+.tool-call.expanded .tool-body { display: block; }
+
+/* ask_user 互動卡片 */
+.ask-card { background: #16213e; border: 1px solid #e94560; border-radius: 8px; padding: 12px; margin: 8px 0; }
+.ask-card .question { margin-bottom: 8px; font-weight: 600; }
+.ask-card .options { display: flex; flex-wrap: wrap; gap: 6px; }
+.ask-card .options button { padding: 6px 12px; background: #0f3460; color: #e0e0e0; border: 1px solid #e94560; border-radius: 4px; cursor: pointer; font-size: 13px; }
+.ask-card .options button:hover { background: #e94560; color: #fff; }
+.ask-card .text-answer { display: flex; gap: 6px; margin-top: 6px; }
+.ask-card .text-answer input { flex: 1; padding: 6px 8px; background: #1a1a2e; color: #e0e0e0; border: 1px solid #0f3460; border-radius: 4px; font-size: 13px; }
+.ask-card .text-answer button { padding: 6px 12px; background: #e94560; color: #fff; border: none; border-radius: 4px; cursor: pointer; font-size: 13px; }
+
+/* 輸入區 */
+#chat-input-area { padding: 12px 16px; border-top: 1px solid #0f3460; background: #16213e; display: flex; gap: 8px; align-items: flex-end; }
+#chat-input { flex: 1; padding: 8px 10px; background: #1a1a2e; color: #e0e0e0; border: 1px solid #0f3460; border-radius: 6px; resize: none; font-size: 14px; font-family: inherit; }
+.chat-buttons { display: flex; gap: 6px; }
+.chat-buttons button { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; }
+#btn-send { background: #e94560; color: #fff; }
+#btn-send:hover { background: #c73550; }
+#btn-abort { background: #333; color: #aaa; }
+#btn-abort:not(:disabled):hover { background: #555; color: #fff; }
+
+/* 右側欄 */
+#sidebar-right { width: 280px; background: #16213e; border-left: 1px solid #0f3460; overflow-y: auto; padding: 12px; }
+#sidebar-right h3 { font-size: 13px; color: #e94560; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+#sidebar-right section { margin-bottom: 20px; }
+#model-select { width: 100%; padding: 6px 8px; background: #1a1a2e; color: #e0e0e0; border: 1px solid #0f3460; border-radius: 4px; font-size: 13px; }
+
+/* Skills 列表 */
+.skill-item { padding: 6px 0; border-bottom: 1px solid #0f3460; font-size: 13px; }
+.skill-name { font-weight: 600; }
+.skill-source { font-size: 11px; color: #888; }
+
+/* 檔案樹 */
+.file-entry { padding: 3px 0; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.file-entry:hover { color: #e94560; }
+.file-entry .icon { width: 16px; text-align: center; font-size: 12px; }
+.file-entry .size { color: #666; font-size: 11px; margin-left: auto; }
+.file-children { padding-left: 16px; }
+.btn-open-folder { padding: 4px 10px; background: #0f3460; color: #e0e0e0; border: 1px solid #0f3460; border-radius: 4px; cursor: pointer; font-size: 12px; margin-bottom: 8px; display: inline-block; }
+.btn-open-folder:hover { background: #e94560; color: #fff; border-color: #e94560; }
+
+/* 空狀態 */
+.empty-state { color: #555; font-size: 13px; text-align: center; padding: 40px 16px; }

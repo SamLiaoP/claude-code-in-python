@@ -4,19 +4,23 @@
 # 用途：掛載所有路由，啟動初始化（DB / Auth / Skills / Tools）
 # 主要功能：
 #   - lifespan: 啟動時初始化 DB、Auth、Skills、Tools
-#   - 掛載 api/chat, api/sessions, api/skills, api/memory 路由
+#   - 掛載 api/chat, api/sessions, api/skills, api/memory, api/files 路由
+#   - 掛載 StaticFiles 提供前端靜態檔案
 # 關聯：整合所有模組
 ###
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from api.chat import init_chat_api, router as chat_router
+from api.files import router as files_router
 from api.memory import router as memory_router
-from api.sessions import init_sessions_api, router as sessions_router
+from api.sessions import init_sessions_api, models_router, providers_router, router as sessions_router
 from api.skills import router as skills_router
 from auth import init_auth
 from config import GLOBAL_CONFIG_DIR, load_config
@@ -30,7 +34,6 @@ from tool.memory_tool import MemoryReadTool, MemoryWriteTool
 from tool.python_tool import PythonTool
 from tool.skill_tool import SkillTool
 
-import os
 _log_level = os.environ.get("LOG_LEVEL", "DEBUG").upper()
 _log_file = os.path.join(os.path.dirname(__file__), "..", "logs", "app.log")
 os.makedirs(os.path.dirname(_log_file), exist_ok=True)
@@ -89,13 +92,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="py-opencode", version="0.1.0", lifespan=lifespan)
 
-# 掛載路由
+# 掛載 API 路由
 app.include_router(chat_router)
 app.include_router(sessions_router)
+app.include_router(providers_router)
+app.include_router(models_router)
 app.include_router(skills_router)
 app.include_router(memory_router)
+app.include_router(files_router)
 
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+# 掛載靜態檔案（放在所有 API 路由之後，避免攔截 /api/* 路徑）
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(_static_dir), html=True), name="static")

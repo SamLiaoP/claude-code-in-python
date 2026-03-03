@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>py-opencode</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <header id="top-bar">
+    <span class="logo">py-opencode</span>
+  </header>
+
+  <div id="app">
+    <!-- 左側欄：Session 列表 -->
+    <aside id="sidebar-left">
+      <button id="btn-new-session">+ 新專案</button>
+      <div id="session-list"></div>
+    </aside>
+
+    <!-- 中間：聊天區 -->
+    <main id="chat-area">
+      <div id="chat-messages"></div>
+      <div id="chat-input-area">
+        <textarea id="chat-input" placeholder="輸入訊息..." rows="2"></textarea>
+        <div class="chat-buttons">
+          <button id="btn-send">送出</button>
+          <button id="btn-abort" disabled>中止</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- 右側欄：Model / Skills / Files -->
+    <aside id="sidebar-right">
+      <section id="model-section">
+        <h3>Model</h3>
+        <select id="model-select"></select>
+      </section>
+      <section id="skills-section">
+        <h3>Skills</h3>
+        <div id="skills-list"></div>
+      </section>
+      <section id="files-section">
+        <h3>目錄瀏覽</h3>
+        <div id="files-tree"></div>
+      </section>
+    </aside>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

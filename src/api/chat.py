@@ -69,6 +69,16 @@ async def websocket_chat(
         await ws.close()
         return
 
+    # 如果 session 有指定 model，覆蓋 provider 預設 model
+    if session.get("model"):
+        from config import ProviderConfig
+        provider_config = ProviderConfig(
+            api_base=provider_config.api_base,
+            api_key=provider_config.api_key,
+            api_key_env=provider_config.api_key_env,
+            model=session["model"],
+        )
+
     provider = LLMProvider(provider_config)
 
     # 根據 session project_dir 重新掃描 skills
